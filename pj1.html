@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>회의록 보조 프로그램 (Gemini + 녹음 + 메모)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg-color: #f5f5f5;
+      --bg-elevated: #ffffff;
+      --text-color: #222222;
+      --border-color: #d0d0d0;
+      --accent-color: #4f46e5;
+      --accent-soft: rgba(79, 70, 229, 0.08);
+      --danger-color: #e11d48;
+      --muted-text: #666666;
+      --shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.12);
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #020617;
+      --bg-elevated: #020617;
+      --text-color: #e5e7eb;
+      --border-color: #1e293b;
+      --accent-color: #6366f1;
+      --accent-soft: rgba(99, 102, 241, 0.16);
+      --danger-color: #fb7185;
+      --muted-text: #9ca3af;
+      --shadow-soft: 0 18px 40px rgba(15, 23, 42, 0.7);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100vh;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 12px;
+      gap: 12px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 14px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow-soft);
+    }
+
+    header .title-area {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+
+    header p {
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted-text);
+    }
+
+    .header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .api-key-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--bg-color);
+      border-radius: 999px;
+      border: 1px solid var(--border-color);
+      padding: 2px 8px;
+    }
+
+    .api-key-wrapper label {
+      font-size: 11px;
+      color: var(--muted-text);
+    }
+
+    #apiKeyInput {
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 11px;
+      min-width: 150px;
+      color: var(--text-color);
+    }
+
+    #apiKeyInput::placeholder { color: var(--muted-text); }
+
+    button {
+      border: 1px solid var(--border-color);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      background: var(--bg-elevated);
+      color: var(--text-color);
+      transition: background .15s, box-shadow .15s, transform .05s, border-color .15s;
+    }
+
+    button span.icon { font-size: 14px; }
+
+    button.primary {
+      background: var(--accent-color);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 8px 22px rgba(79,70,229,.45);
+    }
+
+    button.ghost { background: transparent; }
+
+    button:active {
+      transform: scale(.97);
+      box-shadow: none;
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    #themeToggle {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border-radius: 999px;
+      border-color: transparent;
+      background: var(--accent-soft);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    main {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+      gap: 12px;
+    }
+
+    .panel {
+      background: var(--bg-elevated);
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow-soft);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .panel-header h2 {
+      margin: 0;
+      font-size: 14px;
+      letter-spacing: -0.01em;
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-color);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .status-indicator {
+      font-size: 11px;
+      color: var(--muted-text);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--danger-color);
+      animation: pulse 1.6s infinite;
+    }
+
+    .dot.idle {
+      background: var(--border-color);
+      animation: none;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(248,113,113,.7); }
+      70%{ transform: scale(1.4); box-shadow: 0 0 0 10px rgba(248,113,113,0); }
+      100%{ transform: scale(1); box-shadow: 0 0 0 0 rgba(248,113,113,0); }
+    }
+
+    .left-panel-inner {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: 0;
+    }
+
+    .record-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted-text);
+    }
+
+    .section-card {
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      padding: 8px 10px;
+      background: radial-gradient(circle at top left, var(--accent-soft), transparent 60%);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 0;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted-text);
+    }
+
+    .scroll-area {
+      overflow-y: auto;
+      max-height: 38vh;
+      padding-right: 4px;
+    }
+
+    #transcriptLog {
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .transcript-line {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 2px;
+    }
+
+    .transcript-time {
+      font-size: 11px;
+      color: var(--muted-text);
+      width: 46px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .transcript-text { flex: 1; }
+
+    #interimTranscript {
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px dashed var(--border-color);
+      font-size: 12px;
+      font-style: italic;
+      color: var(--muted-text);
+    }
+
+    .summary-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      overflow-y: auto;
+      max-height: 30vh;
+      padding-right: 4px;
+    }
+
+    .summary-item {
+      border-radius: 10px;
+      border: 1px dashed var(--accent-color);
+      background: var(--accent-soft);
+      padding: 6px 9px;
+      font-size: 12px;
+    }
+
+    .summary-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      margin-bottom: 4px;
+      color: var(--muted-text);
+    }
+
+    .summary-item-title {
+      font-weight: 600;
+      color: var(--accent-color);
+    }
+
+    .summary-item-body {
+      white-space: pre-wrap;
+      line-height: 1.4;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+
+    .toolbar button {
+      padding: 4px 10px;
+      font-size: 11px;
+    }
+
+    .toolbar select,
+    .toolbar input[type="color"] {
+      height: 28px;
+      border-radius: 999px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-elevated);
+      color: var(--text-color);
+      padding: 2px 8px;
+      font-size: 11px;
+    }
+
+    .font-size-control {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-elevated);
+      font-size: 11px;
+      color: var(--muted-text);
+    }
+
+    #fontSizeInput {
+      width: 50px;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 11px;
+      color: var(--text-color);
+    }
+
+    #noteEditor {
+      flex: 1;
+      min-height: 0;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      padding: 10px;
+      font-size: 14px;
+      line-height: 1.5;
+      overflow-y: auto;
+      background: radial-gradient(circle at top left, rgba(148,163,184,.18), transparent 60%);
+    }
+
+    #noteEditor:focus {
+      outline: 2px solid var(--accent-color);
+      outline-offset: 1px;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body data-theme="light">
+  <div class="app">
+    <header>
+      <div class="title-area">
+        <h1>회의록 보조 프로그램</h1>
+        <p>실시간 음성 기록 · Gemini 요약 · 메모 · 녹음 저장</p>
+      </div>
+      <div class="header-actions">
+        <div class="api-key-wrapper">
+          <label for="apiKeyInput">Gemini Key</label>
+          <input id="apiKeyInput" type="password" placeholder="없으면 비워두기" />
+        </div>
+        <button id="startBtn" class="primary">
+          <span class="icon">🎙️</span><span>녹음 시작</span>
+        </button>
+        <button id="stopBtn" class="ghost">
+          <span class="icon">⏸</span><span>일시 정지</span>
+        </button>
+        <button id="summaryBtn">
+          <span class="icon">📝</span><span>중간 정리</span>
+        </button>
+        <button id="saveBtn" class="ghost">
+          <span class="icon">💾</span><span>저장</span>
+        </button>
+        <button id="themeToggle" title="라이트/다크 전환">
+          <span id="themeIcon">🌙</span>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <!-- 왼쪽: 실시간 기록 -->
+      <section class="panel">
+        <div class="panel-header">
+          <h2>실시간 회의 기록</h2>
+          <div class="status-indicator">
+            <div id="recordDot" class="dot idle"></div>
+            <span id="statusText">대기 중</span>
+          </div>
+        </div>
+
+        <div class="left-panel-inner">
+          <div class="record-controls">
+            <button id="clearTranscriptBtn" class="ghost">
+              <span class="icon">🧹</span><span>기록 초기화</span>
+            </button>
+            <span>※ 크롬 · localhost/https 권장, 마이크 허용 필수</span>
+          </div>
+
+          <div class="section-card">
+            <div class="section-header">
+              <span>실시간 대화 내용</span>
+              <span class="badge"><span>🔥</span>자동 기록</span>
+            </div>
+            <div class="scroll-area" id="transcriptScroll">
+              <div id="transcriptLog"></div>
+              <div id="interimTranscript"></div>
+            </div>
+          </div>
+
+          <div class="section-card" style="margin-top:8px;">
+            <div class="section-header">
+              <span>주제별 중간 정리</span>
+              <span class="badge"><span>📝</span>Gemini 요약</span>
+            </div>
+            <div class="summary-list" id="summaryList"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 오른쪽: 메모장 -->
+      <section class="panel">
+        <div class="panel-header">
+          <h2>회의 메모</h2>
+          <span class="badge"><span>✏️</span>리치 텍스트</span>
+        </div>
+
+        <div class="toolbar">
+          <select id="fontFamilySelect">
+            <option value="">기본 글꼴</option>
+            <option value="Pretendard">Pretendard</option>
+            <option value="나눔고딕">나눔고딕</option>
+            <option value="돋움">돋움</option>
+          </select>
+
+          <div class="font-size-control">
+            <span>크기</span>
+            <input id="fontSizeInput" type="number" min="1" max="30" value="12" />
+            <span>pt</span>
+          </div>
+
+          <input id="fontColorInput" type="color" title="글자 색" />
+          <input id="highlightColorInput" type="color" value="#fff59d" title="형광펜 색" />
+
+          <button type="button" data-cmd="bold"><b>B</b></button>
+          <button type="button" data-cmd="italic"><i>I</i></button>
+          <button type="button" data-cmd="underline"><u>U</u></button>
+          <button type="button" data-cmd="strikeThrough"><s>취소선</s></button>
+          <button type="button" data-cmd="insertUnorderedList">• 목록</button>
+          <button type="button" data-cmd="insertOrderedList">1. 목록</button>
+          <button type="button" id="clearHighlightBtn" class="ghost">
+            <span class="icon">🩹</span><span>형광펜 해제</span>
+          </button>
+          <button type="button" id="clearNoteBtn" class="ghost">
+            <span class="icon">🧽</span><span>메모 지우기</span>
+          </button>
+        </div>
+
+        <div id="noteEditor" contenteditable="true"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- PDF 라이브러리 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <script>
+    // ===== 기본 에러 표시 (디버깅용) =====
+    window.addEventListener("error", (e) => {
+      console.error("JS Error:", e.message);
+    });
+
+    // ===== 전역 상태 =====
+    let recognition = null;
+    let isRecognizing = false;
+    let lastResultTime = 0;
+    const WATCHDOG_MS = 4000;   // 4초 동안 결과 없으면 재시작 시도
+
+    const segments = [];
+    let segmentStartIndex = 0;
+    let summaryCount = 0;
+
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let currentStream = null;
+    const audioSupported = !!(navigator.mediaDevices && window.MediaRecorder);
+
+    // DOM
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const summaryBtn = document.getElementById("summaryBtn");
+    const clearTranscriptBtn = document.getElementById("clearTranscriptBtn");
+    const saveBtn = document.getElementById("saveBtn");
+    const apiKeyInput = document.getElementById("apiKeyInput");
+
+    const recordDot = document.getElementById("recordDot");
+    const statusText = document.getElementById("statusText");
+    const transcriptLog = document.getElementById("transcriptLog");
+    const interimTranscript = document.getElementById("interimTranscript");
+    const transcriptScroll = document.getElementById("transcriptScroll");
+    const summaryList = document.getElementById("summaryList");
+
+    const themeToggle = document.getElementById("themeToggle");
+    const themeIcon = document.getElementById("themeIcon");
+
+    const noteEditor = document.getElementById("noteEditor");
+    const fontFamilySelect = document.getElementById("fontFamilySelect");
+    const fontSizeInput = document.getElementById("fontSizeInput");
+    const fontColorInput = document.getElementById("fontColorInput");
+    const highlightColorInput = document.getElementById("highlightColorInput");
+    const clearHighlightBtn = document.getElementById("clearHighlightBtn");
+    const clearNoteBtn = document.getElementById("clearNoteBtn");
+
+    // ===== 유틸 =====
+    function formatTime(d) {
+      const h = String(d.getHours()).padStart(2, "0");
+      const m = String(d.getMinutes()).padStart(2, "0");
+      return h + ":" + m;
+    }
+
+    function setStatus(state, msg) {
+      statusText.textContent = msg;
+      if (state === "recording") recordDot.classList.remove("idle");
+      else recordDot.classList.add("idle");
+    }
+
+    function appendTranscriptLine(text) {
+      const t = new Date();
+      segments.push({ text: text.trim(), time: t });
+
+      const line = document.createElement("div");
+      line.className = "transcript-line";
+
+      const ts = document.createElement("div");
+      ts.className = "transcript-time";
+      ts.textContent = formatTime(t);
+
+      const txt = document.createElement("div");
+      txt.className = "transcript-text";
+      txt.textContent = text.trim();
+
+      line.appendChild(ts);
+      line.appendChild(txt);
+      transcriptLog.appendChild(line);
+      transcriptScroll.scrollTop = transcriptScroll.scrollHeight;
+    }
+
+    function getApiKey() {
+      return apiKeyInput.value.trim();
+    }
+
+    // ===== SpeechRecognition (연속 인식 강화판) =====
+    function initRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert("이 브라우저에서는 Web Speech API를 지원하지 않습니다. 데스크톱 크롬을 사용해 주세요.");
+        setStatus("error", "실시간 음성 인식 미지원 브라우저");
+        return null;
+      }
+
+      const recog = new SpeechRecognition();
+      recog.lang = "ko-KR";
+      recog.continuous = true;
+      recog.interimResults = true;
+      recog.maxAlternatives = 1;
+
+      recog.onstart = () => {
+        lastResultTime = Date.now();
+        setStatus("recording", "녹음 중...");
+        console.log("[Speech] start");
+      };
+
+      recog.onerror = (e) => {
+        console.error("Speech error:", e.error);
+
+        if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+          alert("마이크 권한이 거부되었습니다. 브라우저 설정에서 이 사이트의 마이크를 허용해 주세요.");
+          isRecognizing = false;
+          setStatus("error", "마이크 권한 거부");
+          return;
+        }
+        if (e.error === "audio-capture") {
+          alert("마이크를 찾을 수 없습니다. 마이크 연결을 확인해 주세요.");
+          isRecognizing = false;
+          setStatus("error", "마이크 없음");
+          return;
+        }
+        // no-speech, network 등은 onend + watchdog에서 자동 재시도
+      };
+
+      recog.onend = () => {
+        console.log("[Speech] end, isRecognizing=", isRecognizing);
+        if (isRecognizing) {
+          try { recog.start(); } catch (e) { console.warn("onend 재시작 실패:", e); }
+        } else {
+          setStatus("idle", "대기 중");
+        }
+      };
+
+      recog.onresult = (event) => {
+        lastResultTime = Date.now();
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const res = event.results[i];
+          const t = res[0].transcript;
+          if (res.isFinal) {
+            if (t.trim()) appendTranscriptLine(t);
+          } else {
+            interim += t;
+          }
+        }
+        interimTranscript.textContent = interim ? "[인식 중] " + interim : "";
+      };
+
+      return recog;
+    }
+
+    // 4초 동안 결과 없으면 stop -> onend에서 재시작
+    setInterval(() => {
+      if (!isRecognizing || !recognition) return;
+      const idle = Date.now() - lastResultTime;
+      if (idle > WATCHDOG_MS) {
+        console.log("[Speech] watchdog idle", idle, "ms -> restart");
+        try { recognition.stop(); } catch (e) {}
+        lastResultTime = Date.now();
+      }
+    }, 3000);
+
+    // ===== 녹음(MediaRecorder) =====
+    async function startAudioRecording() {
+      if (!audioSupported) return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        currentStream = stream;
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+        };
+        mediaRecorder.onstop = () => {
+          if (currentStream) {
+            currentStream.getTracks().forEach((t) => t.stop());
+            currentStream = null;
+          }
+        };
+        mediaRecorder.start();
+      } catch (e) {
+        console.error("녹음 시작 실패:", e);
+        alert("오디오 녹음 시작 실패: " + e.message);
+      }
+    }
+
+    function stopAudioRecording() {
+      if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+    }
+
+    // ===== 버튼 동작 =====
+    startBtn.addEventListener("click", async () => {
+      if (!recognition) recognition = initRecognition();
+      if (!recognition) return;
+
+      if (!isRecognizing) {
+        isRecognizing = true;
+        try {
+          recognition.start();
+        } catch (e) {
+          alert("음성 인식 시작 오류: " + e.message);
+          isRecognizing = false;
+          return;
+        }
+        await startAudioRecording();
+      }
+    });
+
+    stopBtn.addEventListener("click", () => {
+      if (recognition && isRecognizing) {
+        isRecognizing = false;
+        recognition.stop();
+        setStatus("idle", "일시 정지됨");
+      }
+      stopAudioRecording();
+    });
+
+    clearTranscriptBtn.addEventListener("click", () => {
+      if (!confirm("실시간 기록을 모두 지울까요? (요약은 유지)")) return;
+      segments.length = 0;
+      segmentStartIndex = 0;
+      transcriptLog.innerHTML = "";
+      interimTranscript.textContent = "";
+    });
+
+    // ===== 요약 =====
+    function naiveSummarize(text) {
+      const cleaned = text.replace(/\s+/g, " ").trim();
+      if (!cleaned) return "(정리할 내용이 없습니다.)";
+      const sentences = cleaned.split(/(?<=[\.!\?…]|다\.|요\.)\s+/);
+      if (sentences.length <= 2) return cleaned;
+      const picked = sentences.slice(0, Math.min(5, sentences.length));
+      let result = picked.join(" ");
+      if (result.length > 600) result = result.slice(0, 600) + " ...";
+      return result;
+    }
+
+    async function summarizeWithGemini(text) {
+      const key = getApiKey();
+      if (!key) return naiveSummarize(text);
+
+      const MAX = 6000;
+      const trimmed = text.length > MAX ? text.slice(-MAX) : text;
+
+      const prompt =
+        "다음은 회의 대화 내용입니다. 핵심 논의, 결정 사항, 액션 아이템을 한국어로 간결히 정리해 주세요.\n" +
+        "- 불릿 목록으로 정리\n- 중요한 결정/다음 할 일은 별도로 강조\n\n" +
+        "=== 회의 내용 시작 ===\n" +
+        trimmed +
+        "\n=== 회의 내용 끝 ===";
+
+      const body = {
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: prompt }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 800,
+        },
+      };
+
+      const res = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": key,
+          },
+          body: JSON.stringify(body),
+        }
+      );
+
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = (data && data.error && data.error.message) || "알 수 없는 오류";
+        throw new Error(msg);
+      }
+
+      const textParts =
+        data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n") ||
+        "";
+      return textParts.trim();
+    }
+
+    summaryBtn.addEventListener("click", async () => {
+      const slice = segments.slice(segmentStartIndex);
+      const sliceEnd = segments.length;
+      let text = slice.map((s) => s.text).join(" ");
+
+      if (!text.trim()) {
+        text = (transcriptLog.innerText || "").trim();
+        if (!text) {
+          alert("정리할 내용이 아직 없습니다.");
+          return;
+        }
+      }
+
+      summaryCount += 1;
+      const now = new Date();
+
+      const item = document.createElement("div");
+      item.className = "summary-item";
+
+      const header = document.createElement("div");
+      header.className = "summary-item-header";
+      const title = document.createElement("div");
+      title.className = "summary-item-title";
+      title.textContent = "주제 " + summaryCount + " 정리";
+      const meta = document.createElement("div");
+      meta.textContent = formatTime(now);
+      header.appendChild(title);
+      header.appendChild(meta);
+
+      const body = document.createElement("div");
+      body.className = "summary-item-body";
+      body.textContent = "요약 생성 중...";
+
+      item.appendChild(header);
+      item.appendChild(body);
+      summaryList.appendChild(item);
+      summaryList.scrollTop = summaryList.scrollHeight;
+
+      const original = summaryBtn.innerHTML;
+      summaryBtn.disabled = true;
+      summaryBtn.innerHTML = '<span class="icon">⏳</span><span>요약 중...</span>';
+
+      try {
+        let result;
+        try {
+          result = await summarizeWithGemini(text);
+        } catch (err) {
+          console.error("Gemini 요약 실패:", err);
+          result =
+            "Gemini 요약에 실패했습니다.\n오류: " +
+            err.message +
+            "\n\n대신 간단 요약을 제공합니다.\n\n" +
+            naiveSummarize(text);
+        }
+        body.textContent = result || "(요약 결과가 없습니다.)";
+        segmentStartIndex = sliceEnd;
+      } finally {
+        summaryBtn.disabled = false;
+        summaryBtn.innerHTML = original;
+      }
+    });
+
+    // ===== 다크 모드 =====
+    themeToggle.addEventListener("click", () => {
+      const cur = document.body.getAttribute("data-theme") || "light";
+      const next = cur === "light" ? "dark" : "light";
+      document.body.setAttribute("data-theme", next);
+      themeIcon.textContent = next === "light" ? "🌙" : "☀️";
+    });
+
+    // ===== 메모 편집 =====
+    function exec(cmd, value = null) {
+      noteEditor.focus();
+      document.execCommand(cmd, false, value);
+    }
+
+    document.querySelectorAll(".toolbar button[data-cmd]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const cmd = btn.getAttribute("data-cmd");
+        exec(cmd);
+      });
+    });
+
+    fontFamilySelect.addEventListener("change", () => {
+      if (fontFamilySelect.value) exec("fontName", fontFamilySelect.value);
+    });
+
+    fontColorInput.addEventListener("input", () => {
+      exec("foreColor", fontColorInput.value);
+    });
+
+    highlightColorInput.addEventListener("input", () => {
+      exec("hiliteColor", highlightColorInput.value);
+    });
+
+    clearNoteBtn.addEventListener("click", () => {
+      if (confirm("메모를 모두 지울까요?")) noteEditor.innerHTML = "";
+    });
+
+    function applyFontSizePt(size) {
+      noteEditor.focus();
+      const sel = window.getSelection();
+      if (!sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+
+      if (range.collapsed) {
+        const span = document.createElement("span");
+        span.style.fontSize = size + "pt";
+        span.appendChild(document.createTextNode("\u200b"));
+        range.insertNode(span);
+        const newRange = document.createRange();
+        newRange.setStart(span.firstChild, 1);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        return;
+      }
+
+      const span = document.createElement("span");
+      span.style.fontSize = size + "pt";
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+    }
+
+    fontSizeInput.addEventListener("change", () => {
+      let size = parseInt(fontSizeInput.value, 10);
+      if (isNaN(size)) return;
+      if (size < 1) size = 1;
+      if (size > 30) size = 30;
+      fontSizeInput.value = size;
+      applyFontSizePt(size);
+    });
+
+    function removeHighlightInSelection() {
+      const sel = window.getSelection();
+      if (!sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      if (range.collapsed) return;
+      if (!noteEditor.contains(range.commonAncestorContainer)) return;
+
+      const walker = document.createTreeWalker(
+        range.commonAncestorContainer,
+        NodeFilter.SHOW_ELEMENT,
+        {
+          acceptNode(node) {
+            if (!range.intersectsNode(node)) return NodeFilter.FILTER_REJECT;
+            const style = window.getComputedStyle(node);
+            if (
+              style.backgroundColor !== "rgba(0, 0, 0, 0)" &&
+              style.backgroundColor.toLowerCase() !== "transparent"
+            ) {
+              return NodeFilter.FILTER_ACCEPT;
+            }
+            return NodeFilter.FILTER_SKIP;
+          }
+        }
+      );
+
+      const targets = [];
+      while (walker.nextNode()) targets.push(walker.currentNode);
+
+      targets.forEach((el) => {
+        el.style.backgroundColor = "";
+        el.style.background = "";
+        const styleVal = el.getAttribute("style");
+        if (styleVal) {
+          const cleaned = styleVal
+            .split(";")
+            .map((s) => s.trim())
+            .filter(
+              (s) =>
+                s &&
+                !s.toLowerCase().startsWith("background") &&
+                !s.toLowerCase().startsWith("background-color")
+            )
+            .join("; ");
+          if (cleaned) el.setAttribute("style", cleaned);
+          else el.removeAttribute("style");
+        }
+      });
+    }
+
+    clearHighlightBtn.addEventListener("click", removeHighlightInSelection);
+
+    noteEditor.innerHTML =
+      "<p style='color:var(--muted-text); font-size:13px;'>여기에 회의 메모를 작성하세요. " +
+      "툴바로 <b>굵게</b>, <i>기울임</i>, <u>밑줄</u>, <s>취소선</s>, 색상, 형광펜, 형광펜 해제, 목록, 글자 크기(1~30pt)를 조절할 수 있습니다.</p>";
+
+    // ===== 저장 (PDF + TXT + 녹음) =====
+    function saveMemoTxt() {
+      const txt = (noteEditor.innerText || "").replace(/\u00a0/g, " ").trim();
+      const blob = new Blob([txt], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "회의_메모.txt";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function saveAudioIfAny() {
+      if (!recordedChunks.length) return;
+      const blob = new Blob(recordedChunks, { type: "audio/webm" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "회의_녹음.webm";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    saveBtn.addEventListener("click", () => {
+      const summaryArea = document.getElementById("summaryList");
+      const hasSummary = summaryArea.children.length > 0;
+
+      if (hasSummary) {
+        const opt = {
+          margin: [10, 10, 10, 10],
+          filename: "회의_요약본.pdf",
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+        };
+        const worker = html2pdf().set(opt).from(summaryArea).save();
+        if (worker && typeof worker.then === "function") {
+          worker.then(() => { saveMemoTxt(); saveAudioIfAny(); })
+                .catch(() => { saveMemoTxt(); saveAudioIfAny(); });
+        } else {
+          saveMemoTxt();
+          saveAudioIfAny();
+        }
+      } else {
+        alert("아직 요약이 없습니다. 메모와 녹음만 저장합니다.");
+        saveMemoTxt();
+        saveAudioIfAny();
+      }
+    });
+  </script>
+</body>
+</html>
